@@ -1,7 +1,6 @@
-# Données brutes Kaggle (volumineuses, hors dépôt Git)
-data_raw/*.csv
-data_raw/*.parquet
-data_raw/*.zip
+# Données brutes Kaggle mono ou multi-datasets (volumineuses, hors dépôt Git)
+data_raw/*
+!data_raw/.gitkeep
 
 # Artefacts Python / Jupyter / Spark locaux
 __pycache__/

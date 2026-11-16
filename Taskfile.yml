@@ -15,9 +15,15 @@ tasks:
   # CYCLE DE VIE DOCKER & INFRASTRUCTURE
   # ==========================================
   build:
-    desc: Construire l'image mutualisée PySpark + Delta Lake + JupyterLab + Streamlit
+    desc: Construire les images natives (amd64 / arm64) Hadoop HDFS + Workspace PySpark/Delta
     cmds:
       - "{{.COMPOSE}} build"
+
+  build:multiarch:
+    desc: Vérifier la construction croisée multi-architecture (linux/amd64,linux/arm64) via Buildx
+    cmds:
+      - docker buildx build --platform linux/amd64,linux/arm64 ./docker/hadoop
+      - docker buildx build --platform linux/amd64,linux/arm64 ./docker/workspace
 
   up:
     desc: Démarrer l'ensemble du cluster HDFS (1 NN + 3 DN), JupyterLab et Streamlit
@@ -32,7 +38,8 @@ tasks:
       - |
         echo "Attente de l'enregistrement des 3 DataNodes HDFS et des interfaces Web..."
         for i in $(seq 1 30); do
-          LIVE_DN=$(docker exec namenode hdfs dfsadmin -report 2>/dev/null | grep -oP 'Live datanodes \(\K[0-9]+' || echo "0")
+          LIVE_DN=$(docker exec namenode hdfs dfsadmin -report 2>/dev/null | sed -n 's/.*Live datanodes (\([0-9][0-9]*\)).*/\1/p')
+          LIVE_DN=${LIVE_DN:-0}
           JUPYTER_OK=$(curl -fs -o /dev/null http://localhost:8888/api && echo "1" || echo "0")
           STREAMLIT_OK=$(curl -fs -o /dev/null http://localhost:8501/_stcore/health && echo "1" || echo "0")
           if [ "$LIVE_DN" = "3" ] && [ "$JUPYTER_OK" = "1" ] && [ "$STREAMLIT_OK" = "1" ]; then
@@ -69,32 +76,51 @@ tasks:
   # DONNÉES KAGGLE & OPÉRATIONS HDFS (TP JOUR 1)
   # ==========================================
   data:download:
-    desc: "Télécharger un dataset Kaggle public dans data_raw/ (ex: task data:download DATASET=auteur/nom-dataset)"
+    desc: "Télécharger un ou plusieurs datasets Kaggle dans data_raw/<nom>/ (ex: task data:download DATASET='auteur1/ds1,auteur2/ds2')"
     cmds:
       - |
-        if [ -z "{{.DATASET}}" ]; then
-          echo "Usage : task data:download DATASET=<auteur/nom-du-dataset>"
-          echo "Exemple : task data:download DATASET=nyc-tlc/trip-record-data"
+        RAW_SLUGS="{{.DATASETS}}{{if and .DATASETS .DATASET}},{{end}}{{.DATASET}}"
+        if [ -z "$RAW_SLUGS" ]; then
+          echo "Usage   : task data:download DATASET='<auteur1/dataset1>[,<auteur2/dataset2>...]'"
+          echo "Exemple : task data:download DATASET='olistbr/brazilian-ecommerce,anseldsouza/brazilian-ecommerce-public-dataset'"
           exit 1
         fi
-        uv run --with kagglehub python -c '
-        import shutil, sys
+        PY_SCRIPT='
+        import re, shutil, sys
         from pathlib import Path
         import kagglehub
 
-        slug = sys.argv[1]
-        dst = Path("data_raw")
-        dst.mkdir(exist_ok=True)
-        src = Path(kagglehub.dataset_download(slug))
+        raw = sys.argv[1]
+        slugs = [s.strip() for s in re.split(r"[,\s]+", raw) if s.strip()]
         exts = {".csv", ".parquet", ".json", ".jsonl", ".tsv"}
-        copied = 0
-        for f in sorted(src.rglob("*")):
-            if f.is_file() and f.suffix.lower() in exts:
-                shutil.copy2(f, dst / f.name)
-                print(f"Copié : {f.name} ({f.stat().st_size / (1024*1024):.2f} Mo)")
-                copied += 1
-        print(f"Total : {copied} fichier(s) copié(s) dans data_raw/.")
-        ' "{{.DATASET}}"
+        base_dst = Path("data_raw")
+        base_dst.mkdir(exist_ok=True)
+
+        total_copied = 0
+        for slug in slugs:
+            subdir_name = re.sub(r"[^a-zA-Z0-9._-]+", "_", slug.split("/")[-1]).strip("_") or "dataset"
+            dst = base_dst / subdir_name
+            dst.mkdir(parents=True, exist_ok=True)
+            print(f"=== Téléchargement Kaggle : {slug} -> {dst}/ ===")
+            src = Path(kagglehub.dataset_download(slug))
+            copied = 0
+            for f in sorted(src.rglob("*")):
+                if f.is_file() and f.suffix.lower() in exts:
+                    rel = f.relative_to(src)
+                    target = dst / rel
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(f, target)
+                    print(f"  Copié : {target.relative_to(base_dst)} ({f.stat().st_size / (1024*1024):.2f} Mo)")
+                    copied += 1
+            print(f"Sous-total ({slug}) : {copied} fichier(s) dans {dst}/.")
+            total_copied += copied
+        print(f"Total global : {total_copied} fichier(s) prêt(s) dans data_raw/.")
+        '
+        if docker ps --format '{{ "{{" }}.Names{{ "}}" }}' 2>/dev/null | grep -qx spark-jupyter; then
+          docker exec -w /workspace spark-jupyter python3 -c "$PY_SCRIPT" "$RAW_SLUGS"
+        else
+          uv run --with kagglehub python -c "$PY_SCRIPT" "$RAW_SLUGS"
+        fi
 
   hdfs:ls:
     desc: Lister le contenu des couches Médaillon (/lakehouse) sur HDFS

@@ -50,7 +50,7 @@
     "**/derby.log": true
   },
   "search.exclude": {
-    "**/data_raw/*.csv": true,
+    "**/data_raw/**": true,
     "**/.venv": true
   }
 }

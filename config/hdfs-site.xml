@@ -46,6 +46,12 @@
     <value>10000</value>
   </property>
 
+  <!-- Sortie rapide du SafeMode au redémarrage (1s au lieu de 30s par défaut dès que les blocs existent) -->
+  <property>
+    <name>dfs.namenode.safemode.extension</name>
+    <value>1000</value>
+  </property>
+
   <!-- Évite les rejets DNS inverses internes au réseau bridge Docker et les blocages d'écriture inter-conteneurs -->
   <property>
     <name>dfs.namenode.datanode.registration.ip-hostname-check</name>
