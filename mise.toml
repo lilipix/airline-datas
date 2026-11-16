@@ -1,4 +1,4 @@
 [tools]
 task = "latest"
 uv = "latest"
-python = "3.11"
+python = "3.15"

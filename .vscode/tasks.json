@@ -4,7 +4,7 @@
     {
       "id": "kaggleDataset",
       "type": "promptString",
-      "description": "Identifiant du dataset Kaggle choisi (format : auteur/nom-du-dataset)"
+      "description": "Identifiant(s) Kaggle séparés par virgule ou espace (ex: auteur1/dataset-1, auteur2/dataset-2)"
     }
   ],
   "tasks": [
@@ -53,9 +53,9 @@
       "problemMatcher": []
     },
     {
-      "label": "TP Jour 1 : Télécharger votre dataset Kaggle dans data_raw/",
+      "label": "TP Jour 1 : Télécharger un ou plusieurs datasets Kaggle dans data_raw/",
       "type": "shell",
-      "command": "task data:download DATASET=${input:kaggleDataset}",
+      "command": "task data:download DATASET=\"${input:kaggleDataset}\"",
       "presentation": {
         "reveal": "always",
         "panel": "shared"

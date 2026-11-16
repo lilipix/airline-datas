@@ -1,13 +1,14 @@
 # TP Big Data Lakehouse — HDFS (3 DataNodes) + PySpark + Delta Lake + Streamlit
 
-Environnement pédagogique complet reposant sur un **cluster HDFS réel distribué (1 NameNode + 3 DataNodes)** avec blocs réduits à **16 Mo** et détection de panne abaissée à **~50 secondes**, couplé à une image mutualisée légère (`python:3.11-slim-bookworm` + `uv` + JARs Delta pré-embarqués) pour **PySpark 3.5**, **Delta Lake 3.2**, **JupyterLab** et **Streamlit**.
+Environnement pédagogique complet compatible nativement **`linux/amd64` (PC x86_64 / WSL2)** et **`linux/arm64` (Apple Silicon M1–M4 / Linux ARM64)** sur **Ubuntu 26.04 LTS**, reposant sur un **cluster HDFS 3.5 réel distribué (1 NameNode + 3 DataNodes)** avec blocs réduits à **16 Mo** et détection de panne abaissée à **~50 secondes**, couplé à une image mutualisée légère (`ubuntu:26.04` + **Python 3.15** via `uv` + OpenJDK 21 + JARs Delta pré-embarqués) pour **PySpark 4.2**, **Delta Lake 4.4**, **JupyterLab 4.6** et **Streamlit**.
 
-Chaque étudiant / groupe **choisit librement sa thématique métier et son dataset public sur Kaggle** pour construire de bout en bout une architecture **Data Lakehouse Médaillon (Bronze → Silver → Gold → Dashboard)**.
+Chaque étudiant / groupe **choisit librement sa thématique métier et combine un dataset multi-tables ou plusieurs datasets publics complémentaires sur Kaggle** (croisés par jointure distribuée) pour construire de bout en bout une architecture **Data Lakehouse Médaillon (Bronze → Silver → Gold → Dashboard)**.
 
 ```mermaid
 flowchart LR
-    K["Votre Dataset Kaggle<br/>(data_raw/)"] --> B["Bronze<br/>/lakehouse/bronze"]
-    B --> S["Silver (ACID Delta)<br/>/lakehouse/silver"]
+    K1["Dataset Kaggle #1 (Faits)<br/>data_raw/source_1/"] --> B["Bronze (Multi-tables)<br/>/lakehouse/bronze"]
+    K2["Dataset Kaggle #2 (Enrichissement)<br/>data_raw/source_2/"] --> B
+    B -->|"Nettoyage & Jointure Spark"| S["Silver (ACID Delta)<br/>/lakehouse/silver"]
     S --> G["Gold (KPI & Segments)<br/>/lakehouse/gold"]
     G --> ST["Dashboard Streamlit<br/>(:8501)"]
 
@@ -25,16 +26,19 @@ flowchart LR
 
 ---
 
-## Critères de choix de votre Dataset Kaggle
+## Critères de choix de vos Datasets Kaggle (Mono ou Multi-Sources avec Jointure)
 
-Pour tirer pleinement parti de l'infrastructure distribuée et des exercices statistiques des Jours 1 à 4, choisissez sur [Kaggle Datasets](https://www.kaggle.com/datasets) un jeu de données respectant ces critères :
+Pour tirer pleinement parti de l'infrastructure distribuée, des jointures Spark (Jour 2) et des exercices statistiques (Jours 3 & 4), choisissez sur [Kaggle Datasets](https://www.kaggle.com/datasets) **soit un dataset relationnel multi-tables, soit 2 (ou plusieurs) datasets complémentaires** respectant ces critères :
 
-1. **Volumétrie totale : ~50 Mo à 500 Mo** (avec au moins un fichier dépassant **20 à 32 Mo** afin d'observer physiquement le découpage multi-blocs de **16 Mo** sur HDFS au Jour 1).
-2. **Richesse des attributs** :
+1. **Volumétrie cumulée : ~50 Mo à 500 Mo** (avec au moins un fichier dépassant **20 à 32 Mo** afin d'observer physiquement le découpage multi-blocs de **16 Mo** sur HDFS au Jour 1).
+2. **Axe de jointure clair entre tables / datasets** :
+   - **Jointure temporelle** (`date`, `jour + heure`, `yyyy-MM`) — *ex. courses de mobilité / vols aériens / consommation électrique × relevés météo horaires ou calendrier des jours fériés*.
+   - **Jointure géographique** (`code pays ISO`, `ville / État`, `code postal`, `aéroport IATA`) — *ex. commandes e-commerce / immobilier / santé × indicateurs socio-démographiques ou référentiel géographique*.
+   - **Jointure par identifiant ou nomenclature métier** (`product_id`, `category`, `station_id`, `carrier_code`).
+3. **Richesse des attributs** :
    - Au moins **une colonne temporelle** (dates / timestamps d'événements) pour les analyses de séries et de croissance (`LAG`).
-   - Des **variables quantitatives continues** (montants, durées, distances, consommations, retards...) permettant d'étudier l'asymétrie (médiane vs moyenne, IQR).
-   - Des **dimensions catégorielles ou géographiques** (catégories, régions, stations, types...) et idéalement **plusieurs tables joignables** (ou une table de nomenclature pour pratiquer le *Broadcast Join*).
-3. **Exemples de domaines possibles** : mobilité urbaine / aérienne, e-commerce & logistique, énergie & capteurs IoT, santé publique, transactions financières, plateformes culturelles / jeux vidéo.
+   - Des **variables quantitatives continues** (montants, durées, distances, consommations, retards, températures...) permettant d'étudier l'asymétrie (médiane vs moyenne, IQR) et de tester statistiquement l'effet croisé entre vos datasets au Jour 4.
+   - Des **dimensions catégorielles ou géographiques** permettant de pratiquer le *Broadcast Hash Join* (et/ou *SortMergeJoin*) sans explosion N-à-M.
 
 ---
 
@@ -51,16 +55,18 @@ Pour tirer pleinement parti de l'infrastructure distribuée et des exercices sta
 │   └── tasks.json              # Actions VS Code en 1 clic (Démarrer, Télécharger Kaggle, Crash-test...)
 ├── docker-compose.yml          # Cluster HDFS (1 NN + 3 DN) + JupyterLab + Streamlit
 ├── Taskfile.yml                # Orchestration go-task (démarrage, crash-test, tests J1..J4)
-├── mise.toml                   # Gestionnaire d'outils (go-task, uv, python 3.11)
-├── pyproject.toml              # Dépendances Python compatibles uv
+├── mise.toml                   # Gestionnaire d'outils (go-task, uv, python 3.15)
+├── pyproject.toml              # Dépendances Python compatibles uv (Python >= 3.15)
 ├── config/
 │   ├── core-site.xml           # Point d'entrée RPC hdfs://namenode:9000
 │   ├── hdfs-site.xml           # Blocs 16 Mo, réplication=2, détection panne ~50s
 │   └── spark-defaults.conf     # Pré-configuration automatique HDFS + Delta Lake
 ├── docker/
+│   ├── hadoop/
+│   │   └── Dockerfile          # Image HDFS 3.5.0 Ubuntu 26.04 native multi-arch (amd64 & arm64)
 │   └── workspace/
-│       ├── Dockerfile          # Image légère multi-arch (uv + OpenJDK + cache Ivy Delta)
-│       └── requirements.txt    # Dépendances gelées pour le workspace
+│       ├── Dockerfile          # Image Ubuntu 26.04 multi-arch (Python 3.15 + uv + OpenJDK 21 + Delta 4.4)
+│       └── requirements.txt    # Dépendances Python 3.15 pour le workspace
 ├── data_raw/                   # Dépôt local de vos fichiers Kaggle avant ingestion HDFS
 ├── notebooks/                  # Notebooks TP pas-à-pas agnostiques (Jours 1 à 4)
 │   ├── J1_HDFS_Ingestion_Bronze.ipynb
@@ -84,8 +90,8 @@ mise trust && mise install
 # 2. Construire l'image et démarrer tout le cluster (attend la disponibilité des 3 DataNodes)
 task up
 
-# 3. Télécharger votre dataset Kaggle choisi dans data_raw/
-task data:download DATASET=auteur/nom-du-dataset
+# 3. Télécharger un ou plusieurs datasets Kaggle dans data_raw/<nom-dataset>/
+task data:download DATASET="auteur1/dataset-1,auteur2/dataset-2"
 ```
 
 ### Sans `task` (commandes Docker natives)
@@ -112,7 +118,7 @@ docker compose up -d --build
 ### Option A — Mode Dev Container intégré *(recommandé : auto-complétion PySpark, Ruff, Git & Kernel en 1 clic)*
 1. Ouvrez ce dossier dans VS Code et installez l'extension recommandée **Dev Containers** (`ms-vscode-remote.remote-containers`).
 2. Cliquez sur **Reopen in Container** (ou `Ctrl+Shift+P` → `Dev Containers: Reopen in Container`).
-3. VS Code vous connecte directement dans `spark-jupyter` (`/workspace`) avec le kernel **`Python 3.11 (PySpark 3.5 + Delta Lake)`**, Pylance, Ruff, `git`, `jq` et `pytest` prêts à l'emploi.
+3. VS Code vous connecte directement dans `spark-jupyter` (`/workspace`) avec le kernel **`Python 3.15 (PySpark 4.2 + Delta Lake 4.4)`**, Pylance, Ruff, `git`, `jq` et `pytest` prêts à l'emploi.
 
 ### Option B — Mode Léger depuis l'hôte *(idéal pour les PC portables à 8 Go de RAM)*
 1. Lancez `task up`.
@@ -147,7 +153,7 @@ docker compose up -d --build
 ```bash
 task up                                  # Démarrer le cluster et attendre les 3 DataNodes + Jupyter + Streamlit
 task status                              # État des conteneurs et rapport HDFS (dfsadmin -report)
-task data:download DATASET=auteur/slug   # Télécharger votre dataset Kaggle dans data_raw/ via uv
+task data:download DATASET="a/ds1,b/ds2" # Télécharger un ou plusieurs datasets dans data_raw/<nom>/
 task hdfs:ls                             # Lister l'occupation disque des couches Bronze / Silver / Gold
 task hdfs:fsck                           # Inspecter les blocs de 16 Mo et leurs DataNodes hôtes
 task hdfs:crash-dn2                      # [TP Jour 1] Couper datanode2 pour observer l'auto-réparation en ~50s

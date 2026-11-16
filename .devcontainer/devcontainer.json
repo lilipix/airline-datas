@@ -1,10 +1,11 @@
 {
-  "name": "Big Data Lakehouse — PySpark 3.5 & Delta Lake (spark-jupyter)",
+  "name": "Big Data Lakehouse — PySpark 4.2 & Delta Lake 4.4 (spark-jupyter)",
   "dockerComposeFile": [
     "../docker-compose.yml"
   ],
   "service": "spark-jupyter",
   "workspaceFolder": "/workspace",
+  "initializeCommand": "docker compose build",
   "overrideCommand": false,
   "shutdownAction": "none",
 
