@@ -130,7 +130,7 @@ docker compose up -d --build
 
 1. **`J1_HDFS_Ingestion_Bronze.ipynb` — Cadrage du sujet, HDFS & Tolérance aux pannes**
    - Sélection et téléchargement de votre dataset Kaggle via `kagglehub`.
-   - Téléversement sur HDFS, inspection du découpage en **blocs de 16 Mo** et de la **Data Locality** (`1 bloc = 1 partition Spark`).
+   - Téléversement sur HDFS, inspection du découpage en **blocs de 16 Mo** et de la **Data Locality**. Les partitions Spark ne correspondent pas nécessairement une à une aux blocs HDFS.
    - **Crash-test en direct** : arrêt de `datanode2`, détection en ~50s, auto-réplication sur le 3e DataNode et lecture sans interruption.
    - Ingestion vers la couche **Bronze** (`/lakehouse/bronze/`) au format Delta Lake avec métadonnées de traçabilité.
 2. **`J2_Spark_Delta_Silver.ipynb` — Nettoyage, Jointures distribuées & Transactions ACID**
