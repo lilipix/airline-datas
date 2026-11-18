@@ -6,14 +6,15 @@ import streamlit as st
 from pyspark.errors import AnalysisException
 from pyspark.sql import SparkSession
 
-st.set_page_config(page_title="Retards aériens", page_icon="✈️", layout="wide")
+st.set_page_config(page_title="Retards aériens", page_icon="✈️", layout="wide", initial_sidebar_state="collapsed")
 st.markdown(
     """
     <style>
     .stApp {
         background:
-            radial-gradient(ellipse at 85% 0%, rgba(35, 91, 145, .20), transparent 38%),
-            #0b1220;
+            linear-gradient(180deg, rgba(255, 201, 51, .05), transparent 220px),
+            radial-gradient(ellipse at 90% 0%, rgba(76, 201, 240, .14), transparent 40%),
+            #0a0f18;
         color: #f1f5f9;
     }
     .block-container { max-width: 1480px; padding-top: 2rem; padding-bottom: 3rem; }
@@ -24,46 +25,192 @@ st.markdown(
     [data-testid="stWidgetLabel"],
     [data-testid="stExpander"] summary,
     div[data-testid="stTabs"] button p {
-        color: #e2eaf5 !important;
+        color: #e8eef7 !important;
     }
-    [data-testid="stSidebar"] { background: #101c2c; }
+    [data-testid="stSidebar"] {
+        background: #0f1724;
+        border-right: 3px solid #ffc933;
+    }
     [data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
     [data-testid="stSidebar"] [data-testid="stWidgetLabel"] {
-        color: #edf4fc !important;
+        color: #f1f5f9 !important;
     }
-    .hero {
-        padding: 1.8rem 2rem;
-        margin-bottom: 1.3rem;
-        border: 1px solid rgba(148, 163, 184, .18);
-        border-radius: 22px;
-        background: linear-gradient(115deg, rgba(20, 40, 66, .96), rgba(13, 25, 43, .82));
-        box-shadow: 0 16px 40px rgba(0, 0, 0, .18);
+    [data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"] { display: none; }
+    [data-testid="stMultiSelect"] div:has(> span:has(> span[title])) { gap: .3rem; }
+    [data-testid="stMultiSelect"] span:has(> span[title]) {
+        background: #ffc933 !important;
+        border-radius: 6px;
     }
-    .hero-kicker {
-        color: #8be4d1;
-        font-size: .76rem;
+    [data-testid="stMultiSelect"] span[title],
+    [data-testid="stMultiSelect"] span:has(> span[title]) svg {
+        color: #05080e !important;
+        fill: #05080e !important;
         font-weight: 700;
-        letter-spacing: .16em;
+    }
+    [data-testid="stMultiSelect"] > div > div {
+        background: #0f1724;
+        border: 1px solid #2a3547;
+        border-left: 4px solid #ffc933;
+        border-radius: 10px;
+    }
+    [data-testid="stMultiSelect"] input { color: #f1f5f9 !important; }
+    [data-baseweb="popover"] li { background: #0f1724; color: #f1f5f9; }
+    [data-baseweb="popover"] li:hover { background: #1d2a3f; }
+    .hero {
+        position: relative;
+        overflow: hidden;
+        padding: 1.8rem 2rem 2.6rem;
+        margin-bottom: 1.3rem;
+        border: 1px solid rgba(255, 201, 51, .35);
+        border-radius: 18px;
+        background: linear-gradient(115deg, #131c2b, #0d1420);
+        box-shadow: 0 16px 40px rgba(0, 0, 0, .35);
+    }
+    .hero-board {
+        display: inline-block;
+        padding: .25rem .7rem;
+        border-radius: 6px;
+        background: #000;
+        color: #ffc933;
+        font: 700 .8rem "Courier New", monospace;
+        letter-spacing: .18em;
         text-transform: uppercase;
     }
-    .hero h1 { margin: .45rem 0 .4rem; color: #f4f8ff; font-size: 2.25rem; }
-    .hero p { margin: 0; color: #d3deeb; font-size: 1rem; }
+    .hero h1 { margin: .7rem 0 .4rem; color: #fff; font-size: 2.3rem; }
+    .hero p { margin: 0; color: #d6e0ee; font-size: 1rem; max-width: 70%; }
+    .hero-plane {
+        position: absolute;
+        right: 2.2rem;
+        top: .9rem;
+        font-size: 4.2rem;
+        color: #ffc933;
+        transform: rotate(-12deg);
+        filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .5));
+    }
+    .runway {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 16px;
+        background: #1b2230;
+        border-top: 2px solid #3a4558;
+    }
+    .runway::after {
+        content: "";
+        position: absolute;
+        left: 2%;
+        right: 2%;
+        top: 6px;
+        border-top: 3px dashed #f4f7fb;
+        opacity: .85;
+    }
     [data-testid="stMetric"] {
         padding: 1rem 1.15rem;
-        border: 1px solid rgba(148, 163, 184, .18);
-        border-radius: 16px;
-        background: linear-gradient(145deg, rgba(22, 38, 60, .94), rgba(15, 27, 45, .92));
+        border: 1px solid #2a3547;
+        border-left: 5px solid #ffc933;
+        border-radius: 10px;
+        background: linear-gradient(145deg, #151f30, #0f1724);
     }
-    [data-testid="stMetricLabel"] p { color: #d3deeb !important; font-size: .84rem; }
-    [data-testid="stMetricValue"] { color: #f4f8ff; }
-    div[data-testid="stTabs"] button { font-weight: 650; }
+    [data-testid="stMetricLabel"] p {
+        color: #c4d0e0 !important;
+        font-size: .8rem;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+    }
+    [data-testid="stMetricValue"] {
+        color: #ffc933;
+        font-family: "Courier New", monospace;
+        font-weight: 700;
+    }
+    div[data-testid="stTabs"] button { font-weight: 700; }
+    div[data-testid="stTabs"] button[aria-selected="true"] p { color: #ffc933 !important; }
+    div[data-testid="stTabs"] [data-baseweb="tab-highlight"] { background: #ffc933; }
     div[data-testid="stExpander"] {
-        border-color: rgba(148, 163, 184, .18);
-        border-radius: 12px;
-        background: rgba(15, 27, 45, .55);
+        border-color: #2a3547;
+        border-radius: 10px;
+        background: rgba(15, 23, 36, .7);
     }
-    div[data-testid="stExpander"] summary p { color: #edf4fc !important; }
-    [data-testid="stPlotlyChart"] { border-radius: 14px; }
+    div[data-testid="stExpander"] summary p { color: #f1f5f9 !important; }
+    [data-testid="stPlotlyChart"] {
+        border: 1px solid #2a3547;
+        border-radius: 12px;
+        background: rgba(15, 23, 36, .6);
+    }
+    .board {
+        margin: 0 0 1.4rem;
+        border: 2px solid #2a3547;
+        border-radius: 12px;
+        background: #05080e;
+        box-shadow: 0 14px 36px rgba(0, 0, 0, .45), inset 0 0 40px rgba(255, 201, 51, .05);
+        overflow: hidden;
+        font-family: "Courier New", monospace;
+    }
+    .board-title {
+        display: flex;
+        justify-content: space-between;
+        padding: .6rem 1rem;
+        background: #ffc933;
+        color: #05080e;
+        font-weight: 800;
+        letter-spacing: .2em;
+        text-transform: uppercase;
+    }
+    .board-row, .board-head {
+        display: grid;
+        grid-template-columns: 1fr .9fr 1.1fr 1.3fr 1.5fr;
+        gap: .6rem;
+        align-items: center;
+        padding: .5rem 1rem;
+    }
+    .board-head {
+        color: #8895a8;
+        font-size: .72rem;
+        letter-spacing: .14em;
+        text-transform: uppercase;
+        border-bottom: 1px solid #1d2635;
+    }
+    .board-row { border-bottom: 1px solid #111827; color: #ffc933; font-weight: 700; font-size: 1.02rem; }
+    .board-row:nth-child(even) { background: rgba(255, 255, 255, .03); }
+    .flap {
+        display: inline-block;
+        padding: .1rem .45rem;
+        border-radius: 4px;
+        background: linear-gradient(180deg, #1a1f29 49%, #0b0e14 51%);
+        border: 1px solid #2c3442;
+        color: #fff;
+    }
+    .st-ok, .st-late, .st-bad { font-size: .85rem; letter-spacing: .08em; }
+    .st-ok { color: #3ddc97; }
+    .st-late { color: #ffc933; }
+    .st-bad { color: #ff6b6b; animation: blink 1.2s steps(2, start) infinite; }
+    @keyframes blink { 50% { opacity: .35; } }
+    .ticker {
+        overflow: hidden;
+        white-space: nowrap;
+        background: #000;
+        border-top: 2px solid #ffc933;
+        color: #ffc933;
+        font: 700 .9rem "Courier New", monospace;
+        padding: .45rem 0;
+    }
+    .ticker span { display: inline-block; padding-left: 100%; animation: scroll 38s linear infinite; }
+    @keyframes scroll { to { transform: translateX(-100%); } }
+    .board-row > span, .board-head > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    @media (max-width: 800px) {
+        .hero { padding: 1.2rem 1rem 2.2rem; }
+        .hero h1 { font-size: 1.5rem; overflow-wrap: normal; }
+        .hero p { max-width: 100%; font-size: .9rem; }
+        .hero-plane { font-size: 2.2rem; top: .6rem; right: 1rem; }
+        .hero-board { font-size: .65rem; letter-spacing: .08em; max-width: 70%; }
+        .board-row, .board-head { grid-template-columns: .9fr 1.1fr 1.1fr 1.5fr; }
+        .board-row > span:nth-child(4), .board-head > span:nth-child(4) { display: none; }
+        .board-row { font-size: .72rem; gap: .3rem; padding: .45rem .5rem; }
+        .board-head { font-size: .55rem; gap: .3rem; padding: .4rem .5rem; letter-spacing: .04em; }
+        .st-ok, .st-late, .st-bad { font-size: .62rem; letter-spacing: 0; }
+        .flap { padding: .05rem .25rem; }
+        .board-title { font-size: .7rem; letter-spacing: .08em; }
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -72,9 +219,11 @@ st.markdown(
 st.markdown(
     """
     <div class="hero">
-      <div class="hero-kicker">Lakehouse aérien · données 2015</div>
+      <div class="hero-board">Départs · Données 2015</div>
+      <div class="hero-plane">✈</div>
       <h1>Retards et ponctualité des vols</h1>
       <p>Comparer les compagnies, suivre les tendances et explorer les profils des aéroports.</p>
+      <div class="runway"></div>
     </div>
     """,
     unsafe_allow_html=True,
@@ -102,7 +251,7 @@ def style_chart(fig, height=420):
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font={"family": "Inter, sans-serif", "color": "#f1f5f9"},
-        colorway=["#68cdb8", "#f0a36f", "#83aef5", "#c49af4"],
+        colorway=["#ffc933", "#4cc9f0", "#3ddc97", "#ff6b6b"],
         margin={"l": 18, "r": 18, "t": 42, "b": 18},
         height=height,
         hoverlabel={"bgcolor": "#14243a", "bordercolor": "#64809f", "font": {"color": "#f8fafc"}},
@@ -148,19 +297,77 @@ total = int(airlines["n_vols"].sum())
 positive_minutes = int(airlines["minutes_retard"].sum())
 late_rate = float((airlines["retard_pct"] * airlines["n_vols"]).sum() / total)
 
+
+def flight_status(rate: float) -> tuple[str, str]:
+    if rate < 15:
+        return "st-ok", "À L'HEURE"
+    if rate < 20:
+        return "st-late", "RETARDÉ"
+    return "st-bad", "TRÈS RETARDÉ"
+
+
+def render_board(title: str, tag: str, head: list[str], rows: list[list[str]], ticker: str) -> None:
+    body = "".join(
+        f'<div class="board-row"><span class="flap">{r[0]}</span><span>{r[1]}</span>'
+        f"<span>{r[2]}</span><span>{r[3]}</span>"
+        f'<span class="{r[4]}">{r[5]}</span></div>'
+        for r in rows
+    )
+    heads = "".join(f"<span>{h}</span>" for h in head)
+    st.markdown(
+        f'<div class="board"><div class="board-title"><span>✈ {title}</span><span>{tag}</span></div>'
+        f'<div class="board-head">{heads}</div>{body}'
+        f'<div class="ticker"><span>{ticker}</span></div></div>',
+        unsafe_allow_html=True,
+    )
+
+
+def fmt(value: int) -> str:
+    return f"{value:,}".replace(",", " ")
+
+
+board_airlines = airlines.sort_values("n_vols", ascending=False).head(10)
+render_board(
+    "Départs · Compagnies",
+    "TOP 10 PAR TRAFIC",
+    ["Compagnie", "Vols", "Retard ≥ 15 min", "Minutes de retard", "Statut"],
+    [
+        [
+            str(r.airline),
+            fmt(int(r.n_vols)),
+            f"{r.retard_pct:.1f} %",
+            fmt(int(r.minutes_retard)),
+            *flight_status(float(r.retard_pct)),
+        ]
+        for r in board_airlines.itertuples()
+    ],
+    f"BIENVENUE · {fmt(total)} VOLS ANALYSÉS · {late_rate:.1f} % DE RETARDS ≥ 15 MIN · "
+    "DONNÉES 2015 · BON VOL !",
+)
+
+board_airports = airports.sort_values("n_vols", ascending=False).head(8)
+render_board(
+    "Arrivées · Aéroports",
+    "TOP 8 PAR TRAFIC",
+    ["Code", "Vols", "Retard ≥ 15 min", "Annulations", "Statut"],
+    [
+        [
+            str(r.origin_airport),
+            fmt(int(r.n_vols)),
+            f"{r.taux_retard:.1f} %",
+            f"{r.taux_annulation:.1f} %",
+            *flight_status(float(r.taux_retard)),
+        ]
+        for r in board_airports.itertuples()
+    ],
+    " · ".join(f"{r.origin_airport} {r.airport_name}" for r in board_airports.itertuples()),
+)
+
 kpi1, kpi2, kpi3, kpi4 = st.columns(4)
 kpi1.metric("Vols analysés", f"{total:,}".replace(",", " "))
 kpi2.metric("Retards ≥ 15 min", f"{late_rate:.1f} %")
 kpi3.metric("Minutes de retard positives", f"{positive_minutes:,}".replace(",", " "))
 kpi4.metric("Compagnies", f"{airlines['airline'].nunique()}")
-
-with st.sidebar:
-    st.markdown("### Filtres")
-    options = sorted(airlines["airline"].tolist())
-    selected = st.multiselect("Compagnies à comparer", options, default=options)
-    st.caption("Le filtre s'applique aux graphiques des compagnies.")
-    st.divider()
-    st.caption("Les vues mensuelles, Pareto et aéroports restent globales.")
 
 overview_tab, airline_tab, monthly_tab, airport_tab = st.tabs(
     ["Vue d'ensemble", "Compagnies", "Évolution mensuelle", "Aéroports"]
@@ -212,7 +419,7 @@ with overview_tab:
                     "pareto_pct": "Part cumulée (%)",
                 },
             )
-            fig.add_hline(y=80, line_dash="dash", line_color="#f0a36f", annotation_text="80 %")
+            fig.add_hline(y=80, line_dash="dash", line_color="#ffc933", annotation_text="80 %")
             st.plotly_chart(style_chart(fig, 400), width="stretch")
         with st.expander("Calcul du Pareto"):
             st.code(PARETO_SQL, language="sql")
@@ -231,7 +438,7 @@ with overview_tab:
             markers=True,
             labels={"mois": "Mois", "retard_pct": "Vols avec retard ≥ 15 min (%)"},
         )
-        fig.add_hline(y=late_rate, line_dash="dot", line_color="#83aef5", annotation_text="Moyenne annuelle")
+        fig.add_hline(y=late_rate, line_dash="dot", line_color="#4cc9f0", annotation_text="Moyenne annuelle")
         st.plotly_chart(style_chart(fig, 400), width="stretch")
         with st.expander("Calcul mensuel"):
             st.code(MONTHLY_SQL, language="sql")
@@ -239,6 +446,13 @@ with overview_tab:
 
 with airline_tab:
     st.subheader("Comparer les compagnies")
+    options = sorted(airlines["airline"].tolist())
+    selected = st.multiselect(
+        "Compagnies affichées",
+        options,
+        default=options,
+        help="Le filtre s'applique aux graphiques de cet onglet.",
+    )
     filtered = airlines[airlines["airline"].isin(selected)].copy()
     if filtered.empty:
         st.info("Choisissez au moins une compagnie dans les filtres.")
@@ -255,7 +469,7 @@ with airline_tab:
                 y="airline",
                 orientation="h",
                 color="mediane",
-                color_continuous_scale=["#68cdb8", "#83aef5", "#f0a36f"],
+                color_continuous_scale=["#3ddc97", "#ffc933", "#ff6b6b"],
                 hover_data=["airline_name", "n_vols", "p25", "p75", "p90"],
                 labels={
                     "airline": "Compagnie",
@@ -287,7 +501,7 @@ GROUP BY airline""",
                 x=composition["retard_pct"],
                 y=composition["airline"],
                 orientation="h",
-                marker_color="#f08c76",
+                marker_color="#ff6b6b",
                 customdata=composition[["airline_name", "n_vols"]].to_numpy(),
                 hovertemplate="%{customdata[0]}<br>Retard ≥ 15 min : %{x:.1f} %<br>"
                 "Vols : %{customdata[1]:,}<extra></extra>",
@@ -297,7 +511,7 @@ GROUP BY airline""",
                 x=100 - composition["retard_pct"],
                 y=composition["airline"],
                 orientation="h",
-                marker_color="#55c6a5",
+                marker_color="#3ddc97",
                 hovertemplate="Retard < 15 min : %{x:.1f} %<extra></extra>",
             )
             fig.update_layout(barmode="stack")
@@ -331,7 +545,7 @@ GROUP BY airline""",
                 error_x="iqr_plus",
                 error_x_minus="iqr_minus",
                 color="p90",
-                color_continuous_scale=["#68cdb8", "#83aef5", "#f0a36f"],
+                color_continuous_scale=["#3ddc97", "#ffc933", "#ff6b6b"],
                 hover_data=["airline_name", "n_vols", "p25", "p75", "p90"],
                 labels={
                     "airline": "Compagnie",
@@ -369,7 +583,7 @@ with monthly_tab:
             x="mois",
             y="n_vols",
             color="n_vols",
-            color_continuous_scale=["#29496d", "#68cdb8"],
+            color_continuous_scale=["#1f3a5f", "#ffc933"],
             hover_data=["vols_mois_precedent", "evolution_vols_pct"],
             labels={"mois": "Mois", "n_vols": "Vols"},
         )
@@ -387,7 +601,7 @@ with monthly_tab:
             hover_data=["n_vols", "mediane", "evolution_vols_pct"],
             labels={"mois": "Mois", "retard_pct": "Vols en retard (%)"},
         )
-        fig.add_hline(y=late_rate, line_dash="dot", line_color="#f0a36f", annotation_text="Moyenne annuelle")
+        fig.add_hline(y=late_rate, line_dash="dot", line_color="#ffc933", annotation_text="Moyenne annuelle")
         st.plotly_chart(style_chart(fig, 390), width="stretch")
         with st.expander("Requête SQL & choix de l'indicateur"):
             st.code(MONTHLY_SQL, language="sql")
@@ -406,9 +620,9 @@ with airport_tab:
         color="segment",
         size="n_vols",
         color_discrete_map={
-            "Retard relatif faible": "#55c6a5",
-            "Retard relatif intermédiaire": "#83aef5",
-            "Retard relatif élevé": "#f08c76",
+            "Retard relatif faible": "#3ddc97",
+            "Retard relatif intermédiaire": "#4cc9f0",
+            "Retard relatif élevé": "#ff6b6b",
         },
         hover_name="origin_airport",
         hover_data=["airport_name", "distance_moyenne", "retard_positif_moyen", "taux_annulation"],
@@ -467,9 +681,9 @@ GROUP BY origin_airport HAVING COUNT(*) >= 100""",
         y="taux_annulation",
         color="segment",
         color_discrete_map={
-            "Retard relatif faible": "#55c6a5",
-            "Retard relatif intermédiaire": "#83aef5",
-            "Retard relatif élevé": "#f08c76",
+            "Retard relatif faible": "#3ddc97",
+            "Retard relatif intermédiaire": "#4cc9f0",
+            "Retard relatif élevé": "#ff6b6b",
         },
         points="outliers",
         hover_data=["origin_airport", "airport_name", "n_vols"],
