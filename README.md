@@ -140,11 +140,13 @@ docker compose up -d --build
 3. **`J3_Analytics_SQL_Gold.ipynb` — Spark SQL avancé, Rigueur statistique & Couche Gold**
    - Diagnostic d'asymétrie (`SKEWNESS`) : justification statistique du couple **Médiane (`PERCENTILE_APPROX`) + IQR** face à la moyenne.
    - Fonctions de fenêtrage SQL (`DENSE_RANK`, courbe cumulée de **Pareto**, `ROW_NUMBER`, évolution temporelle `LAG`).
+   - Comparaison des fêtes nationales et du Super Bowl XLIX (départs PHX) aux retards et aux minutes attribuées à la météo. Gold produit les tables `flights_daily_stats` et `flights_airport_event_weather_stats`.
+   - `weather_delay` est une cause de retard déclarée dans le dataset, pas une observation de température, vent ou précipitations. Ajouter une source météo externe pour analyser les conditions réelles.
    - Alimentation de vos tables **Gold** (`/lakehouse/gold/`) et compaction `OPTIMIZE`.
 4. **`J4_Stats_Segmentation_Dashboard.ipynb` — Tests statistiques, Segmentation & Dashboard**
    - Tests d'hypothèses non-paramétriques (`scipy.stats` : **Mann-Whitney U**, **Kruskal-Wallis**, **Spearman**).
    - Segmentation / typologie non supervisée (**K-Means** avec `log1p` + `StandardScaler`) enregistrée en couche Gold.
-   - Restitution décisionnelle interactive et documentée dans `app/dashboard.py` sur `http://localhost:8501`.
+   - Restitution décisionnelle interactive (dont l'onglet **Événements & météo**) dans `app/dashboard.py` sur `http://localhost:8501`.
 
 ---
 
