@@ -335,7 +335,7 @@ render_board(
     ["Compagnie", "Vols", "Retard ≥ 15 min", "Minutes de retard", "Statut"],
     [
         [
-            str(r.airline),
+            f'{r.airline_name} <span style="color:#8895a8">({r.airline})</span>',
             fmt(int(r.n_vols)),
             f"{r.retard_pct:.1f} %",
             fmt(int(r.minutes_retard)),
@@ -351,10 +351,10 @@ board_airports = airports.sort_values("n_vols", ascending=False).head(8)
 render_board(
     "Arrivées · Aéroports",
     "TOP 8 PAR TRAFIC",
-    ["Code", "Vols", "Retard ≥ 15 min", "Annulations", "Statut"],
+    ["Aéroport", "Vols", "Retard ≥ 15 min", "Annulations", "Statut"],
     [
         [
-            str(r.origin_airport),
+            f'{r.airport_name} <span style="color:#8895a8">({r.origin_airport})</span>',
             fmt(int(r.n_vols)),
             f"{r.taux_retard:.1f} %",
             f"{r.taux_annulation:.1f} %",
@@ -423,6 +423,13 @@ with overview_tab:
             )
             fig.add_hline(y=80, line_dash="dash", line_color="#ffc933", annotation_text="80 %")
             st.plotly_chart(style_chart(fig, 400), width="stretch")
+
+            airline_legend = " · ".join(
+                f"`{r.airline}` — {r.airline_name}"
+                for r in pareto.itertuples()
+            )
+            with st.expander("Légende des codes compagnies"):
+                st.markdown(airline_legend)
         with st.expander("Calcul du Pareto"):
             st.code(PARETO_SQL, language="sql")
             st.write(
@@ -451,13 +458,20 @@ with overview_tab:
 with airline_tab:
     st.subheader("Comparer les compagnies")
     options = sorted(airlines["airline"].tolist())
+    airline_names = dict(zip(airlines["airline"], airlines["airline_name"]))
+    airline_labels = {
+        code: f"{name} ({code})" for code, name in airline_names.items()
+    }
+
     selected = st.multiselect(
         "Compagnies affichées",
         options,
         default=options,
+        format_func=lambda code: airline_labels.get(code, code),
         help="Le filtre s'applique aux graphiques de cet onglet.",
     )
     filtered = airlines[airlines["airline"].isin(selected)].copy()
+    filtered["airline_label"] = filtered["airline"].map(airline_labels)
     if filtered.empty:
         st.info("Choisissez au moins une compagnie dans les filtres.")
     else:
@@ -470,13 +484,14 @@ with airline_tab:
             fig = px.bar(
                 median_data,
                 x="mediane",
-                y="airline",
+                y="airline_label",
                 orientation="h",
                 color="mediane",
                 color_continuous_scale=["#3ddc97", "#ffc933", "#ff6b6b"],
-                hover_data=["airline_name", "n_vols", "p25", "p75", "p90"],
+                hover_data=["airline", "airline_name", "n_vols", "p25", "p75", "p90"],
                 labels={
-                    "airline": "Compagnie",
+                    "airline_label": "Compagnie",
+                    "airline": "Code compagnie",
                     "mediane": "Retard médian (min ; négatif = avance)",
                 },
             )
@@ -505,17 +520,17 @@ GROUP BY airline""",
             fig.add_bar(
                 name="Retard ≥ 15 min",
                 x=composition["retard_pct"],
-                y=composition["airline"],
+                y=composition["airline_label"],
                 orientation="h",
                 marker_color="#ff6b6b",
-                customdata=composition[["airline_name", "n_vols"]].to_numpy(),
-                hovertemplate="%{customdata[0]}<br>Retard ≥ 15 min : %{x:.1f} %<br>"
-                "Vols : %{customdata[1]:,}<extra></extra>",
+                customdata=composition[["airline", "airline_name", "n_vols"]].to_numpy(),
+                hovertemplate="%{customdata[1]} (%{customdata[0]})<br>"
+                "Retard ≥ 15 min : %{x:.1f} %<br>Vols : %{customdata[2]:,}<extra></extra>",
             )
             fig.add_bar(
                 name="Retard < 15 min",
                 x=100 - composition["retard_pct"],
-                y=composition["airline"],
+                y=composition["airline_label"],
                 orientation="h",
                 marker_color="#3ddc97",
                 hovertemplate="Retard < 15 min : %{x:.1f} %<extra></extra>",
@@ -549,14 +564,15 @@ GROUP BY airline""",
             fig = px.scatter(
                 spread_data,
                 x="mediane",
-                y="airline",
+                y="airline_label",
                 error_x="iqr_plus",
                 error_x_minus="iqr_minus",
                 color="p90",
                 color_continuous_scale=["#3ddc97", "#ffc933", "#ff6b6b"],
-                hover_data=["airline_name", "n_vols", "p25", "p75", "p90"],
+                hover_data=["airline", "airline_name", "n_vols", "p25", "p75", "p90"],
                 labels={
-                    "airline": "Compagnie",
+                    "airline_label": "Compagnie",
+                    "airline": "Code compagnie",
                     "mediane": "Retard (minutes)",
                     "p90": "P90 (minutes)",
                 },
