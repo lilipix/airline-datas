@@ -371,8 +371,8 @@ kpi2.metric("Retards ≥ 15 min", f"{late_rate:.1f} %")
 kpi3.metric("Minutes de retard positives", f"{positive_minutes:,}".replace(",", " "))
 kpi4.metric("Compagnies", f"{airlines['airline'].nunique()}")
 
-overview_tab, airline_tab, monthly_tab, airport_tab = st.tabs(
-    ["Vue d'ensemble", "Compagnies", "Évolution mensuelle", "Aéroports"]
+overview_tab, airline_tab, monthly_tab, airport_tab, exploration_tab = st.tabs(
+    ["Vue d'ensemble", "Compagnies", "Évolution mensuelle", "Aéroports", "📅 Exploration quotidienne"]
 )
 
 PARETO_SQL = """WITH grouped AS (
@@ -715,3 +715,12 @@ HAVING COUNT(*) >= 100""",
         )
 
 st.caption("Source : tables Delta Gold de J3 et J4 · Projet d'analyse des retards aériens")
+
+
+# --- Nouveaux onglets (les quatre vues existantes restent inchangées) ---
+
+# --- Exploration quotidienne : un seul onglet, un seul calendrier ---
+from dashboard_extensions_v3 import render_exploration_tab
+
+with exploration_tab:
+    render_exploration_tab(get_spark, style_chart)
