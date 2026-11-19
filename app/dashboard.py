@@ -6,7 +6,9 @@ import streamlit as st
 from pyspark.errors import AnalysisException
 from pyspark.sql import SparkSession
 
-st.set_page_config(page_title="Retards aériens", page_icon="✈️", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(
+    page_title="Retards aériens", page_icon="✈️", layout="wide", initial_sidebar_state="collapsed"
+)
 st.markdown(
     """
     <style>
@@ -438,7 +440,9 @@ with overview_tab:
             markers=True,
             labels={"mois": "Mois", "retard_pct": "Vols avec retard ≥ 15 min (%)"},
         )
-        fig.add_hline(y=late_rate, line_dash="dot", line_color="#4cc9f0", annotation_text="Moyenne annuelle")
+        fig.add_hline(
+            y=late_rate, line_dash="dot", line_color="#4cc9f0", annotation_text="Moyenne annuelle"
+        )
         st.plotly_chart(style_chart(fig, 400), width="stretch")
         with st.expander("Calcul mensuel"):
             st.code(MONTHLY_SQL, language="sql")
@@ -490,7 +494,9 @@ WHERE cancelled = 0 AND arrival_delay IS NOT NULL
 GROUP BY airline""",
                     language="sql",
                 )
-                st.write("P25–P75 donne l'intervalle interquartile ; P90 décrit les retards les plus élevés.")
+                st.write(
+                    "P25–P75 donne l'intervalle interquartile ; P90 décrit les retards les plus élevés."
+                )
 
         with rate_tab:
             st.caption("Une arrivée est classée en retard à partir de 15 minutes.")
@@ -533,7 +539,9 @@ GROUP BY airline""",
                 )
 
         with spread_tab:
-            st.caption("Le point représente la médiane; la barre horizontale couvre le milieu de la distribution (P25–P75).")
+            st.caption(
+                "Le point représente la médiane; la barre horizontale couvre le milieu de la distribution (P25–P75)."
+            )
             spread_data = filtered.assign(
                 iqr_plus=filtered["p75"] - filtered["mediane"],
                 iqr_minus=filtered["mediane"] - filtered["p25"],
@@ -601,7 +609,9 @@ with monthly_tab:
             hover_data=["n_vols", "mediane", "evolution_vols_pct"],
             labels={"mois": "Mois", "retard_pct": "Vols en retard (%)"},
         )
-        fig.add_hline(y=late_rate, line_dash="dot", line_color="#ffc933", annotation_text="Moyenne annuelle")
+        fig.add_hline(
+            y=late_rate, line_dash="dot", line_color="#ffc933", annotation_text="Moyenne annuelle"
+        )
         st.plotly_chart(style_chart(fig, 390), width="stretch")
         with st.expander("Requête SQL & choix de l'indicateur"):
             st.code(MONTHLY_SQL, language="sql")
@@ -639,15 +649,16 @@ with airport_tab:
     mean_late_rate = sum(late_rates) / len(late_rates)
     variance_log_volume = sum((value - mean_log_volume) ** 2 for value in log_volumes)
     if variance_log_volume > 0:
-        slope = sum(
-            (volume - mean_log_volume) * (rate - mean_late_rate)
-            for volume, rate in zip(log_volumes, late_rates)
-        ) / variance_log_volume
+        slope = (
+            sum(
+                (volume - mean_log_volume) * (rate - mean_late_rate)
+                for volume, rate in zip(log_volumes, late_rates)
+            )
+            / variance_log_volume
+        )
         intercept = mean_late_rate - slope * mean_log_volume
         min_log_volume, max_log_volume = min(log_volumes), max(log_volumes)
-        trend_log_volumes = [
-            min_log_volume + (max_log_volume - min_log_volume) * i / 49 for i in range(50)
-        ]
+        trend_log_volumes = [min_log_volume + (max_log_volume - min_log_volume) * i / 49 for i in range(50)]
         fig.add_scatter(
             x=[10**value for value in trend_log_volumes],
             y=[intercept + slope * value for value in trend_log_volumes],
