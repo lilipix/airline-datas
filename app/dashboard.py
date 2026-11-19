@@ -6,7 +6,9 @@ import streamlit as st
 from pyspark.errors import AnalysisException
 from pyspark.sql import SparkSession
 
-st.set_page_config(page_title="Retards aériens", page_icon="✈️", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(
+    page_title="Retards aériens", page_icon="✈️", layout="wide", initial_sidebar_state="collapsed"
+)
 st.markdown(
     """
     <style>
@@ -284,13 +286,12 @@ try:
     airlines = load_gold_table("/lakehouse/gold/flights_airline_pareto")
     monthly = load_gold_table("/lakehouse/gold/flights_monthly")
     airports = load_gold_table("/lakehouse/gold/flights_airport_segments")
-    airport_event_weather = load_gold_table("/lakehouse/gold/flights_airport_event_weather_stats")
 except AnalysisException as error:
     st.error("Tables Gold indisponibles : exécutez J3 et J4 avant d'ouvrir le tableau de bord.")
     st.exception(error)
     st.stop()
 
-if airlines.empty or monthly.empty or airports.empty or airport_event_weather.empty:
+if airlines.empty or monthly.empty or airports.empty:
     st.error("Une table Gold est vide : vérifiez les résultats de J3 et J4.")
     st.stop()
 
@@ -370,8 +371,8 @@ kpi2.metric("Retards ≥ 15 min", f"{late_rate:.1f} %")
 kpi3.metric("Minutes de retard positives", f"{positive_minutes:,}".replace(",", " "))
 kpi4.metric("Compagnies", f"{airlines['airline'].nunique()}")
 
-overview_tab, airline_tab, monthly_tab, airport_tab, event_weather_tab = st.tabs(
-    ["Vue d'ensemble", "Compagnies", "Évolution mensuelle", "Aéroports", "Événements & météo"]
+overview_tab, airline_tab, monthly_tab, airport_tab = st.tabs(
+    ["Vue d'ensemble", "Compagnies", "Évolution mensuelle", "Aéroports"]
 )
 
 PARETO_SQL = """WITH grouped AS (
@@ -439,7 +440,9 @@ with overview_tab:
             markers=True,
             labels={"mois": "Mois", "retard_pct": "Vols avec retard ≥ 15 min (%)"},
         )
-        fig.add_hline(y=late_rate, line_dash="dot", line_color="#4cc9f0", annotation_text="Moyenne annuelle")
+        fig.add_hline(
+            y=late_rate, line_dash="dot", line_color="#4cc9f0", annotation_text="Moyenne annuelle"
+        )
         st.plotly_chart(style_chart(fig, 400), width="stretch")
         with st.expander("Calcul mensuel"):
             st.code(MONTHLY_SQL, language="sql")
@@ -491,7 +494,9 @@ WHERE cancelled = 0 AND arrival_delay IS NOT NULL
 GROUP BY airline""",
                     language="sql",
                 )
-                st.write("P25–P75 donne l'intervalle interquartile ; P90 décrit les retards les plus élevés.")
+                st.write(
+                    "P25–P75 donne l'intervalle interquartile ; P90 décrit les retards les plus élevés."
+                )
 
         with rate_tab:
             st.caption("Une arrivée est classée en retard à partir de 15 minutes.")
@@ -534,7 +539,9 @@ GROUP BY airline""",
                 )
 
         with spread_tab:
-            st.caption("Le point représente la médiane; la barre horizontale couvre le milieu de la distribution (P25–P75).")
+            st.caption(
+                "Le point représente la médiane; la barre horizontale couvre le milieu de la distribution (P25–P75)."
+            )
             spread_data = filtered.assign(
                 iqr_plus=filtered["p75"] - filtered["mediane"],
                 iqr_minus=filtered["mediane"] - filtered["p25"],
@@ -602,7 +609,9 @@ with monthly_tab:
             hover_data=["n_vols", "mediane", "evolution_vols_pct"],
             labels={"mois": "Mois", "retard_pct": "Vols en retard (%)"},
         )
-        fig.add_hline(y=late_rate, line_dash="dot", line_color="#ffc933", annotation_text="Moyenne annuelle")
+        fig.add_hline(
+            y=late_rate, line_dash="dot", line_color="#ffc933", annotation_text="Moyenne annuelle"
+        )
         st.plotly_chart(style_chart(fig, 390), width="stretch")
         with st.expander("Requête SQL & choix de l'indicateur"):
             st.code(MONTHLY_SQL, language="sql")
@@ -640,15 +649,16 @@ with airport_tab:
     mean_late_rate = sum(late_rates) / len(late_rates)
     variance_log_volume = sum((value - mean_log_volume) ** 2 for value in log_volumes)
     if variance_log_volume > 0:
-        slope = sum(
-            (volume - mean_log_volume) * (rate - mean_late_rate)
-            for volume, rate in zip(log_volumes, late_rates)
-        ) / variance_log_volume
+        slope = (
+            sum(
+                (volume - mean_log_volume) * (rate - mean_late_rate)
+                for volume, rate in zip(log_volumes, late_rates)
+            )
+            / variance_log_volume
+        )
         intercept = mean_late_rate - slope * mean_log_volume
         min_log_volume, max_log_volume = min(log_volumes), max(log_volumes)
-        trend_log_volumes = [
-            min_log_volume + (max_log_volume - min_log_volume) * i / 49 for i in range(50)
-        ]
+        trend_log_volumes = [min_log_volume + (max_log_volume - min_log_volume) * i / 49 for i in range(50)]
         fig.add_scatter(
             x=[10**value for value in trend_log_volumes],
             y=[intercept + slope * value for value in trend_log_volumes],
@@ -703,65 +713,5 @@ HAVING COUNT(*) >= 100""",
             "Chaque boîte résume la distribution des taux d'annulation des aéroports du segment; "
             "les aéroports, et non les vols, sont les observations."
         )
-
-with event_weather_tab:
-    st.subheader("Fêtes, événement sportif et retards attribués à la météo")
-    st.caption(
-        "`weather_delay` correspond aux minutes attribuées à la météo dans les dossiers de vol, "
-        "pas à des relevés météo observés. Les événements nationaux sont comparés par date; "
-        "le Super Bowl XLIX est rapproché des départs de PHX, aéroport proxy de Phoenix."
-    )
-    airport_options = sorted(airport_event_weather["origin_airport"].dropna().unique().tolist())
-    default_airport = airport_options.index("PHX") if "PHX" in airport_options else 0
-    selected_airport = st.selectbox(
-        "Aéroport de départ",
-        airport_options,
-        index=default_airport,
-    )
-    airport_days = airport_event_weather[
-        airport_event_weather["origin_airport"] == selected_airport
-    ].copy()
-    event_days = airport_days[airport_days["event_type"] != "Jour ordinaire"].sort_values("flight_date")
-
-    fig = px.scatter(
-        airport_days,
-        x="weather_delay_rate",
-        y="delay_rate",
-        color="event_type",
-        hover_name="event_name",
-        hover_data=[
-            "flight_date",
-            "event_scope",
-            "weather_delay_flights",
-            "weather_delay_minutes",
-            "cause_documented_flights",
-            "observed_flights",
-        ],
-        labels={
-            "weather_delay_rate": "Vols avec retard attribué à la météo (%)",
-            "delay_rate": "Vols avec retard ≥ 15 min (%)",
-            "event_type": "Type de journée",
-        },
-        title=f"Retards et retards attribués à la météo · {selected_airport}",
-    )
-    st.plotly_chart(style_chart(fig, 460), width="stretch")
-    st.markdown("#### Journées d'événement")
-    st.dataframe(
-        event_days[
-            [
-                "flight_date",
-                "event_name",
-                "event_scope",
-                "scheduled_flights",
-                "delay_rate",
-                "cancellation_rate",
-                "weather_delay_rate",
-                "weather_delay_minutes",
-                "weather_delay_share_pct",
-            ]
-        ],
-        hide_index=True,
-        width="stretch",
-    )
 
 st.caption("Source : tables Delta Gold de J3 et J4 · Projet d'analyse des retards aériens")
