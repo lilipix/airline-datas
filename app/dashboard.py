@@ -635,6 +635,10 @@ with monthly_tab:
 
 with airport_tab:
     st.subheader("Profils des aéroports")
+    airports["airport_label"] = airports.apply(
+        lambda row: f'{row["airport_name"]} ({row["origin_airport"]})',
+        axis=1,
+    )
     st.caption(
         "Chaque point représente un aéroport. Les couleurs indiquent les trois segments K-Means; "
         "la droite en pointillés montre une tendance descriptive."
@@ -650,8 +654,8 @@ with airport_tab:
             "Retard relatif intermédiaire": "#4cc9f0",
             "Retard relatif élevé": "#ff6b6b",
         },
-        hover_name="origin_airport",
-        hover_data=["airport_name", "distance_moyenne", "retard_positif_moyen", "taux_annulation"],
+        hover_name="airport_label",
+        hover_data=["origin_airport", "distance_moyenne", "retard_positif_moyen", "taux_annulation"],
         log_x=True,
         labels={
             "n_vols": "Nombre de vols (échelle logarithmique)",
@@ -713,8 +717,13 @@ GROUP BY origin_airport HAVING COUNT(*) >= 100""",
             "Retard relatif élevé": "#ff6b6b",
         },
         points="outliers",
-        hover_data=["origin_airport", "airport_name", "n_vols"],
-        labels={"segment": "Segment d'aéroport", "taux_annulation": "Annulations (%)"},
+        hover_name="airport_label",
+        hover_data=["origin_airport", "n_vols"],
+        labels={
+            "segment": "Segment d'aéroport",
+            "taux_annulation": "Annulations (%)",
+            "origin_airport": "Code aéroport",
+        },
     )
     st.plotly_chart(style_chart(fig, 420), width="stretch")
     with st.expander("Méthode & interprétation"):

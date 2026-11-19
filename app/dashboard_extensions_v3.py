@@ -49,6 +49,20 @@ def _hours(_spark, day, airport):
 
 
 @st.cache_data(ttl=600, show_spinner=False)
+def _airport_names(_spark):
+    """Charge les noms complets des aéroports depuis la couche Bronze."""
+    try:
+        df = (_spark.read.format('delta').load('/lakehouse/bronze/airports')
+              .select('iata_code', 'airport')
+              .dropna(subset=['iata_code', 'airport'])
+              .dropDuplicates(['iata_code'])
+              .toPandas())
+        return dict(zip(df['iata_code'], df['airport']))
+    except Exception:
+        return {}
+
+
+@st.cache_data(ttl=600, show_spinner=False)
 def _weather(_spark, day):
     from pyspark.sql import functions as F
     columns = [
@@ -400,7 +414,7 @@ def render_events_tab(get_spark, style_chart):
     st.caption('Les données sont historiques (2015). Un écart observé lors d’une fête ne démontre pas une relation de causalité.')
 
 
-def _airport_map(airport_day, routes_day, airport_code, style_chart):
+def _airport_map(airport_day, routes_day, airport_code, style_chart, airport_names=None):
     fig = go.Figure()
     if airport_code != 'Tous' and not routes_day.empty:
         edges = routes_day[routes_day.origin_airport == airport_code].nlargest(25, 'scheduled_flights')
@@ -415,9 +429,14 @@ def _airport_map(airport_day, routes_day, airport_code, style_chart):
     airports['size'] = ((airports.scheduled_flights.clip(lower=0)**.5)*.55+5).clip(upper=32)
     airports['color'] = airports.delay_rate.apply(
         lambda x: '#94a3b8' if pd.isna(x) else '#ff6b6b' if x >= 25 else '#ffc933' if x >= 15 else '#3ddc97')
-    labels = [f'{r.origin_airport}<br>Vols programmés : {r.scheduled_flights:,}' +
-              (f'<br>Retards arrivée : {r.delay_rate:.1f} %' if pd.notna(r.delay_rate) else '<br>Retards : données insuffisantes')
-              for r in airports.itertuples()]
+    airport_names = airport_names or {}
+    labels = [
+        f'{airport_names.get(r.origin_airport, r.origin_airport)} ({r.origin_airport})'
+        f'<br>Vols programmés : {r.scheduled_flights:,}'
+        + (f'<br>Retards arrivée : {r.delay_rate:.1f} %'
+           if pd.notna(r.delay_rate) else '<br>Retards : données insuffisantes')
+        for r in airports.itertuples()
+    ]
     fig.add_trace(go.Scattergeo(
         lon=airports.longitude,lat=airports.latitude, mode='markers',text=labels,hoverinfo='text',
         marker={'size':airports['size'],'color':airports['color'], 'opacity':.9,
@@ -444,16 +463,24 @@ def render_map_tab(get_spark, style_chart):
     if airport_day.empty:
         st.info('Aucun aéroport disponible pour cette journée.');return
     airports = sorted(airport_day.origin_airport.dropna().unique().tolist())
+    airport_names = _airport_names(spark)
+    map_labels = {
+        code: f'{airport_names.get(code, code)} ({code})'
+        for code in airports
+    }
     map_col, summary_col = st.columns([1.7, 1])
     with summary_col:
         airport_code = st.selectbox(
             'Aéroport à détailler',
             ['Tous', *airports],
+            format_func=lambda code: 'Tous les aéroports' if code == 'Tous' else map_labels.get(code, code),
             key='ext_map_airport',
         )
         selected_airports = airport_day if airport_code == 'Tous' else airport_day[
             airport_day.origin_airport == airport_code
         ]
+        if airport_code != 'Tous':
+            st.caption(f'{airport_names.get(airport_code, airport_code)} ({airport_code})')
         scheduled = int(selected_airports.scheduled_flights.sum())
         delay_rate = selected_airports.delay_rate.mean()
         st.metric('Vols programmés', f'{scheduled:,}'.replace(',', ' '))
@@ -463,7 +490,7 @@ def render_map_tab(get_spark, style_chart):
         )
         st.caption('🟢 < 15 % · 🟡 15–25 % · 🔴 ≥ 25 % · ⚪ données indisponibles')
     with map_col:
-        fig = _airport_map(airport_day, routes_day, airport_code, style_chart)
+        fig = _airport_map(airport_day, routes_day, airport_code, style_chart, airport_names)
         if fig is not None:
             st.plotly_chart(fig, use_container_width=True)
     st.caption('Taille des cercles = nombre de vols programmés. Les liaisons sont schématiques ; aucun avion n’est suivi en temps réel.')
@@ -477,14 +504,28 @@ def render_traffic_tab(get_spark, style_chart):
         spark=get_spark()
         airports=_geo(spark,GOLD_AIRPORT,day)
         airport_codes=sorted(airports.origin_airport.dropna().unique().tolist()) if not airports.empty else []
+        airport_names=_airport_names(spark)
+        traffic_labels={
+            code: f'{airport_names.get(code, code)} ({code})'
+            for code in airport_codes
+        }
         # Un nouveau nom de clé évite de conserver l'ancienne sélection ABQ de la V4.
-        selected=st.selectbox('Périmètre', ['Tous les aéroports',*airport_codes],key='ext_hour_airport_v5')
+        selected=st.selectbox(
+            'Périmètre',
+            ['Tous les aéroports',*airport_codes],
+            format_func=lambda code: 'Tous les aéroports' if code == 'Tous les aéroports' else traffic_labels.get(code, code),
+            key='ext_hour_airport_v5',
+        )
         data=_hours(spark,day,selected)
     except Exception as exc:
         st.warning('Statistiques horaires indisponibles : vérifier la table Gold flights_airport_traffic_delays.')
         st.caption(str(exc));return
     if data.empty:
         st.info('Aucun créneau horaire pour la sélection.');return
+
+    if selected != 'Tous les aéroports':
+        selected_name = airport_names.get(selected, selected)
+        st.caption(f'Analyse de : {selected_name} ({selected})')
     data['scheduled_hour']=data['scheduled_hour'].astype(int)
     data['delay_rate']=100*data['delayed']/data['observed'].where(data['observed']>0)
     # Un pourcentage avec moins de 10 observations est trop instable pour être interprété.
